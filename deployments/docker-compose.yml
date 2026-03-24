@@ -1,0 +1,104 @@
+version: "3.9"
+
+networks:
+  fileservice-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
+
+services:
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fileservice
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - fileservice-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── MinIO ────────────────────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - fileservice-net
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ── MailHog (SMTP catch-all for dev) ─────────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    networks:
+      - fileservice-net
+
+  # ── Redis (optional: future distributed rate limiting) ───────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - fileservice-net
+
+  # ── API ──────────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      HTTP_ADDR: ":3000"
+      JWT_SECRET: "dev-secret-change-in-production"
+      JWT_EXPIRY_HOURS: "72"
+      POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/fileservice?sslmode=disable"
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"
+      MINIO_BUCKET: "uploads"
+      MINIO_USE_SSL: "false"
+      SMTP_HOST: "mailhog"
+      SMTP_PORT: "1025"
+      SMTP_FROM: "noreply@fileservice.dev"
+      TMP_DIR: "/tmp/fileservice"
+      PROCESSED_DIR: "/tmp/fileservice/processed"
+      MAX_FILE_SIZE_MB: "50"
+      WORKER_COUNT: "10"
+      JOB_QUEUE_SIZE: "1000"
+      RATE_LIMIT_RPS: "1.67"
+      RATE_LIMIT_BURST: "10"
+    ports:
+      - "3000:3000"
+    networks:
+      - fileservice-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: on-failure
