@@ -44,14 +44,15 @@ func (m *FileMeta) Scan(value interface{}) error {
 }
 
 type File struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID       uuid.UUID `gorm:"type:uuid;not null;index"`
-	Status       string    `gorm:"not null;default:pending"`
-	FileType     string    `gorm:"not null"`
-	OriginalName string    `gorm:"not null"`
-	StoragePath  string
-	Meta         FileMeta  `gorm:"type:jsonb;not null;default:'{}'"`
-	RetryCount   int       `gorm:"not null;default:0"`
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID            uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID        uuid.UUID `gorm:"type:uuid;not null;index"`
+	Status        string    `gorm:"not null;default:pending"`
+	FileType      string    `gorm:"not null"`
+	OriginalName  string    `gorm:"not null"`
+	StoragePath   string
+	Meta          FileMeta  `gorm:"type:jsonb;not null;default:'{}'"`
+	ExtractedText string    `gorm:"type:text;not null;default:''"`
+	RetryCount    int       `gorm:"not null;default:0"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }

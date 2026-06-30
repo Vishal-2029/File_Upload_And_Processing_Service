@@ -22,6 +22,11 @@ func NewFileHandler(router fiber.Router, fileSvc svcinterfaces.FileService) {
 	router.Get("/files/:id", h.Get)
 	router.Get("/files/:id/download", h.Download)
 	router.Delete("/files/:id", h.Delete)
+	router.Get("/files/:id/text", h.GetText)
+	router.Put("/files/:id/text", h.UpdateText)
+	router.Post("/files/:id/export-pdf", h.ExportPDF)
+	router.Get("/files/:id/pages", h.GetPages)
+	router.Put("/files/:id/pages/:page", h.UpdatePage)
 }
 
 // List godoc
@@ -96,6 +101,116 @@ func (h *FileHandler) Delete(c *fiber.Ctx) error {
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// GetText godoc
+// GET /files/:id/text — returns the extracted text of a processed PDF
+func (h *FileHandler) GetText(c *fiber.Ctx) error {
+	userID := mustParseUserID(c)
+
+	fileID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid file id"})
+	}
+
+	text, err := h.fileSvc.GetText(c.Context(), userID, fileID)
+	if err != nil {
+		return fileError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"file_id": fileID, "text": text})
+}
+
+// UpdateText godoc
+// PUT /files/:id/text — saves user-edited text for a PDF
+func (h *FileHandler) UpdateText(c *fiber.Ctx) error {
+	userID := mustParseUserID(c)
+
+	fileID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid file id"})
+	}
+
+	var body struct {
+		Text string `json:"text"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if body.Text == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "text cannot be empty"})
+	}
+
+	if err := h.fileSvc.UpdateText(c.Context(), userID, fileID, body.Text); err != nil {
+		return fileError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"message": "text updated successfully"})
+}
+
+// ExportPDF godoc
+// POST /files/:id/export-pdf — generates a new PDF from the (edited) text and returns a presigned URL
+func (h *FileHandler) ExportPDF(c *fiber.Ctx) error {
+	userID := mustParseUserID(c)
+
+	fileID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid file id"})
+	}
+
+	url, err := h.fileSvc.ExportPDF(c.Context(), userID, fileID)
+	if err != nil {
+		return fileError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"url": url, "expires_in": "3600s"})
+}
+
+// GetPages godoc
+// GET /files/:id/pages — returns extracted text split into individual pages
+func (h *FileHandler) GetPages(c *fiber.Ctx) error {
+	userID := mustParseUserID(c)
+
+	fileID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid file id"})
+	}
+
+	pages, err := h.fileSvc.GetPages(c.Context(), userID, fileID)
+	if err != nil {
+		return fileError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"file_id": fileID, "total_pages": len(pages), "pages": pages})
+}
+
+// UpdatePage godoc
+// PUT /files/:id/pages/:page — edit the text of one specific page
+func (h *FileHandler) UpdatePage(c *fiber.Ctx) error {
+	userID := mustParseUserID(c)
+
+	fileID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid file id"})
+	}
+
+	pageNum, err := strconv.Atoi(c.Params("page"))
+	if err != nil || pageNum < 1 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid page number"})
+	}
+
+	var body struct {
+		Text string `json:"text"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if err := h.fileSvc.UpdatePage(c.Context(), userID, fileID, pageNum, body.Text); err != nil {
+		return fileError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"message": "page updated successfully", "page": pageNum})
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

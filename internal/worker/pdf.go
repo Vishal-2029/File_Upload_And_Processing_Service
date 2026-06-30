@@ -1,79 +1,129 @@
 package worker
 
 import (
-	"os"
-	"path/filepath"
+	"bytes"
+	"fmt"
 	"strings"
 
+	"github.com/jung-kurt/gofpdf"
+	"github.com/ledongthuc/pdf"
 	pdfapi "github.com/pdfcpu/pdfcpu/pkg/api"
-	pdfmodel "github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 
 	"github.com/Vishal-2029/file-upload-service/internal/models"
 )
 
-// ProcessPDF extracts page count and approximates word count from a PDF file.
-// Returns FileMeta with PageCount and WordCount populated.
-func ProcessPDF(filePath string) (models.FileMeta, error) {
-	conf := pdfmodel.NewDefaultConfiguration()
+// PDFResult holds both the metadata and extracted text from a PDF.
+type PDFResult struct {
+	Meta          models.FileMeta
+	ExtractedText string
+}
 
+// ProcessPDF extracts page count, word count, and full text from a PDF file.
+func ProcessPDF(filePath string) (PDFResult, error) {
 	pageCount, err := pdfapi.PageCountFile(filePath)
 	if err != nil {
-		return models.FileMeta{}, err
+		return PDFResult{}, err
 	}
 
-	wordCount := extractWordCount(filePath, conf)
+	text := extractText(filePath)
+	wordCount := len(strings.Fields(text))
 
-	return models.FileMeta{
-		PageCount: pageCount,
-		WordCount: wordCount,
+	return PDFResult{
+		Meta: models.FileMeta{
+			PageCount: pageCount,
+			WordCount: wordCount,
+		},
+		ExtractedText: text,
 	}, nil
 }
 
-// extractWordCount extracts content streams and counts whitespace-delimited tokens.
-// Non-fatal: returns 0 on any error so a page count is still recorded.
-func extractWordCount(filePath string, conf *pdfmodel.Configuration) int {
-	tmpDir, err := os.MkdirTemp("", "pdfextract-*")
-	if err != nil {
-		return 0
-	}
-	defer os.RemoveAll(tmpDir)
-
-	if err := pdfapi.ExtractContentFile(filePath, tmpDir, nil, conf); err != nil {
-		return 0
-	}
-
-	entries, err := os.ReadDir(tmpDir)
-	if err != nil {
-		return 0
-	}
-
-	wordCount := 0
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(tmpDir, entry.Name()))
-		if err != nil {
-			continue
-		}
-		// Content streams contain PostScript operators mixed with text.
-		// Count non-operator tokens as a rough word approximation.
-		for _, tok := range strings.Fields(string(data)) {
-			if len(tok) > 1 && !isOperator(tok) {
-				wordCount++
-			}
-		}
-	}
-	return wordCount
+// PageText holds the text content of a single PDF page.
+type PageText struct {
+	Page int    `json:"page"`
+	Text string `json:"text"`
 }
 
-// isOperator returns true for single-character PostScript operators.
-func isOperator(s string) bool {
-	operators := map[string]bool{
-		"BT": true, "ET": true, "Tf": true, "Td": true, "TD": true,
-		"Tm": true, "T*": true, "Tj": true, "TJ": true, "Tr": true,
-		"Ts": true, "Tw": true, "Tz": true, "cm": true, "q":  true,
-		"Q":  true, "re": true, "f":  true, "S":  true, "n":  true,
+// extractPages reads clean text from each page separately.
+// Returns one PageText per page; empty pages are included so page numbers stay stable.
+func extractPages(filePath string) []PageText {
+	f, r, err := pdf.Open(filePath)
+	if err != nil {
+		return nil
 	}
-	return operators[s]
+	defer f.Close()
+
+	pages := make([]PageText, r.NumPage())
+	for i := 1; i <= r.NumPage(); i++ {
+		p := r.Page(i)
+		text := ""
+		if !p.V.IsNull() {
+			text, _ = p.GetPlainText(nil)
+		}
+		pages[i-1] = PageText{Page: i, Text: strings.TrimRight(text, "\n")}
+	}
+	return pages
 }
+
+// extractText returns all pages joined with page-separator markers.
+// Used for backwards-compatible single-blob storage in extracted_text column.
+func extractText(filePath string) string {
+	pages := extractPages(filePath)
+	var buf bytes.Buffer
+	for i, p := range pages {
+		if i > 0 {
+			buf.WriteString(fmt.Sprintf("\n\n[PAGE %d]\n\n", p.Page))
+		}
+		buf.WriteString(p.Text)
+	}
+	return buf.String()
+}
+
+// ParsePages splits stored extracted_text back into per-page slices.
+func ParsePages(text string) []PageText {
+	if text == "" {
+		return nil
+	}
+	// Split on the [PAGE N] markers inserted by extractText.
+	parts := strings.Split(text, "\n\n[PAGE ")
+	pages := make([]PageText, 0, len(parts))
+	for i, part := range parts {
+		if i == 0 {
+			pages = append(pages, PageText{Page: 1, Text: strings.TrimSpace(part)})
+			continue
+		}
+		// part starts with "N]\n\ncontent"
+		idx := strings.Index(part, "]")
+		if idx < 0 {
+			continue
+		}
+		pageNum := 0
+		fmt.Sscanf(part[:idx], "%d", &pageNum)
+		content := strings.TrimSpace(part[idx+1:])
+		pages = append(pages, PageText{Page: pageNum, Text: content})
+	}
+	return pages
+}
+
+// GeneratePDF creates a proper multi-page PDF from the stored extracted_text.
+// Each [PAGE N] marker starts a new PDF page.
+func GeneratePDF(text, outputPath string) error {
+	doc := gofpdf.New("P", "mm", "A4", "")
+	doc.SetFont("Arial", "", 11)
+	doc.SetMargins(20, 20, 20)
+
+	pages := ParsePages(text)
+	if len(pages) == 0 {
+		// Fallback: treat entire text as one page.
+		pages = []PageText{{Page: 1, Text: text}}
+	}
+
+	for _, p := range pages {
+		doc.AddPage()
+		for _, line := range strings.Split(p.Text, "\n") {
+			doc.MultiCell(0, 6, line, "", "L", false)
+		}
+	}
+
+	return doc.OutputFileAndClose(outputPath)
+}
+

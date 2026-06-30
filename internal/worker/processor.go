@@ -138,12 +138,16 @@ func (p *Processor) doProcess(ctx context.Context, job domain.Job) error {
 		contentType string
 	)
 
+	var extractedText string
+
 	switch job.FileType {
 	case domain.FileTypePDF:
-		meta, err = ProcessPDF(job.TmpPath)
-		if err != nil {
-			return fmt.Errorf("pdf processing: %w", err)
+		pdfResult, pdfErr := ProcessPDF(job.TmpPath)
+		if pdfErr != nil {
+			return fmt.Errorf("pdf processing: %w", pdfErr)
 		}
+		meta = pdfResult.Meta
+		extractedText = pdfResult.ExtractedText
 		outputPath = job.TmpPath
 		contentType = "application/pdf"
 
@@ -171,8 +175,8 @@ func (p *Processor) doProcess(ctx context.Context, job domain.Job) error {
 	// Clean up tmp file after successful upload.
 	_ = os.Remove(job.TmpPath)
 
-	// 5. Update DB: status done + storage path + meta.
-	if err := p.fileRepo.UpdateDone(ctx, job.FileID, storageKey, meta); err != nil {
+	// 5. Update DB: status done + storage path + meta + extracted text.
+	if err := p.fileRepo.UpdateDone(ctx, job.FileID, storageKey, meta, extractedText); err != nil {
 		return fmt.Errorf("update done: %w", err)
 	}
 

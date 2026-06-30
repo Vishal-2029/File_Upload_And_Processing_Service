@@ -72,15 +72,23 @@ func (r *FileRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string
 		Update("status", status).Error
 }
 
-func (r *FileRepo) UpdateDone(ctx context.Context, id uuid.UUID, storagePath string, meta models.FileMeta) error {
+func (r *FileRepo) UpdateDone(ctx context.Context, id uuid.UUID, storagePath string, meta models.FileMeta, extractedText string) error {
 	return r.db.WithContext(ctx).
 		Model(&models.File{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"status":       "done",
-			"storage_path": storagePath,
-			"meta":         meta,
+			"status":         "done",
+			"storage_path":   storagePath,
+			"meta":           meta,
+			"extracted_text": extractedText,
 		}).Error
+}
+
+func (r *FileRepo) UpdateExtractedText(ctx context.Context, id uuid.UUID, text string) error {
+	return r.db.WithContext(ctx).
+		Model(&models.File{}).
+		Where("id = ?", id).
+		Update("extracted_text", text).Error
 }
 
 func (r *FileRepo) UpdateError(ctx context.Context, id uuid.UUID, errMsg string) error {
