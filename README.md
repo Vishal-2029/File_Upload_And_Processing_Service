@@ -172,25 +172,49 @@ make lint         # golangci-lint
 
 ```
 .
-├── cmd/main.go                     # entry point
-├── config/config.go                # env config
-├── internal/
-│   ├── db/postgres.go              # GORM connection
-│   ├── di/wire.go                  # dependency injection
-│   ├── domain/file.go              # Job struct, status constants
-│   ├── handlers/                   # Fiber HTTP handlers
-│   ├── middleware/                 # JWT, rate limiting
-│   ├── models/                     # GORM models
-│   ├── notification/               # WebSocket hub + email
-│   ├── queue/job_queue.go          # buffered channel queue
-│   ├── repo/                       # GORM repositories
-│   ├── services/                   # business logic
-│   ├── storage/minio.go            # MinIO wrapper
-│   └── worker/                     # pool, processor, pdf, image
-├── migrations/001_init.sql         # DB schema
-├── deployments/docker-compose.yml  # full stack
-└── scripts/seed.sh                 # test data
+├── backend/                        # Go API service
+│   ├── cmd/main.go                 # entry point
+│   ├── config/config.go            # env config
+│   ├── Dockerfile                  # container build
+│   ├── Makefile                    # dev commands
+│   ├── internal/
+│   │   ├── db/postgres.go          # GORM connection
+│   │   ├── di/wire.go              # dependency injection
+│   │   ├── domain/file.go          # Job struct, status constants
+│   │   ├── handlers/               # Fiber HTTP handlers
+│   │   ├── middleware/             # JWT, rate limiting
+│   │   ├── models/                 # GORM models
+│   │   ├── notification/           # WebSocket hub + email
+│   │   ├── queue/job_queue.go      # buffered channel queue
+│   │   ├── repo/                   # GORM repositories
+│   │   ├── services/               # business logic
+│   │   ├── storage/minio.go        # MinIO wrapper
+│   │   └── worker/                 # pool, processor, pdf, image
+│   ├── migrations/                 # DB schema files
+│   ├── deployments/docker-compose.yml  # full stack
+│   └── scripts/seed.sh             # test data
+│
+└── ui/                             # React frontend
+    ├── src/
+    │   ├── pages/UploadPage.jsx    # drag & drop PDF upload
+    │   ├── pages/EditorPage.jsx    # line-by-line PDF text editor
+    │   ├── api.js                  # API client
+    │   └── styles.css
+    ├── package.json
+    └── vite.config.js              # proxies /api → backend :3000
 ```
+
+## Running the project
+
+```bash
+# Start backend infrastructure + API
+cd backend && make docker-up
+
+# Start frontend dev server (in a separate terminal)
+cd ui && npm install && npm run dev
+```
+
+Open http://localhost:5173 for the UI, http://localhost:3000 for the API directly.
 
 ---
 
