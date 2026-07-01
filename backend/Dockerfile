@@ -15,7 +15,9 @@ WORKDIR /app
 
 COPY --from=builder /app/server .
 
-RUN mkdir -p /tmp/fileservice/processed
+RUN mkdir -p /tmp/fileservice/processed && chown -R nobody:nobody /tmp/fileservice
+
+ENV HOME=/tmp
 
 EXPOSE 3000
 
