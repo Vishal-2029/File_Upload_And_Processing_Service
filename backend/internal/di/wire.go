@@ -54,6 +54,7 @@ func Init() {
 		cfg.MinioSecretKey,
 		cfg.MinioBucket,
 		cfg.MinioUseSSL,
+		cfg.MinioPublicEndpoint,
 	)
 
 	// ── Repositories ─────────────────────────────────────────────────────────

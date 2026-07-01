@@ -15,11 +15,12 @@ type Config struct {
 
 	PostgresDSN string
 
-	MinioEndpoint  string
-	MinioAccessKey string
-	MinioSecretKey string
-	MinioBucket    string
-	MinioUseSSL    bool
+	MinioEndpoint       string
+	MinioPublicEndpoint string
+	MinioAccessKey      string
+	MinioSecretKey      string
+	MinioBucket         string
+	MinioUseSSL         bool
 
 	SMTPHost string
 	SMTPPort int
@@ -47,11 +48,12 @@ func Load() *Config {
 
 		PostgresDSN: getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/fileservice?sslmode=disable"),
 
-		MinioEndpoint:  getEnv("MINIO_ENDPOINT", "localhost:9000"),
-		MinioAccessKey: getEnv("MINIO_ACCESS_KEY", "minioadmin"),
-		MinioSecretKey: getEnv("MINIO_SECRET_KEY", "minioadmin"),
-		MinioBucket:    getEnv("MINIO_BUCKET", "uploads"),
-		MinioUseSSL:    getEnvBool("MINIO_USE_SSL", false),
+		MinioEndpoint:       getEnv("MINIO_ENDPOINT", "localhost:9000"),
+		MinioPublicEndpoint: getEnv("MINIO_PUBLIC_ENDPOINT", ""),
+		MinioAccessKey:      getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+		MinioSecretKey:      getEnv("MINIO_SECRET_KEY", "minioadmin"),
+		MinioBucket:         getEnv("MINIO_BUCKET", "uploads"),
+		MinioUseSSL:         getEnvBool("MINIO_USE_SSL", false),
 
 		SMTPHost: getEnv("SMTP_HOST", "localhost"),
 		SMTPPort: getEnvInt("SMTP_PORT", 1025),

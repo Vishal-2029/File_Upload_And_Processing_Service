@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -12,11 +13,13 @@ import (
 )
 
 type MinioStorage struct {
-	client *minio.Client
-	bucket string
+	client         *minio.Client
+	bucket         string
+	internalEndpoint string // e.g. "minio:9000" (Docker internal)
+	publicEndpoint   string // e.g. "localhost:9000" (browser-accessible)
 }
 
-func NewMinioStorage(endpoint, accessKey, secretKey, bucket string, useSSL bool) *MinioStorage {
+func NewMinioStorage(endpoint, accessKey, secretKey, bucket string, useSSL bool, publicEndpoint string) *MinioStorage {
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
@@ -37,8 +40,17 @@ func NewMinioStorage(endpoint, accessKey, secretKey, bucket string, useSSL bool)
 		log.Info().Str("bucket", bucket).Msg("minio bucket created")
 	}
 
+	if publicEndpoint == "" {
+		publicEndpoint = endpoint
+	}
+
 	log.Info().Str("endpoint", endpoint).Msg("minio connected")
-	return &MinioStorage{client: client, bucket: bucket}
+	return &MinioStorage{
+		client:           client,
+		bucket:           bucket,
+		internalEndpoint: endpoint,
+		publicEndpoint:   publicEndpoint,
+	}
 }
 
 // PutObject uploads a file from a reader. contentType e.g. "application/pdf".
@@ -57,9 +69,23 @@ func (s *MinioStorage) PutFile(ctx context.Context, objectKey, filePath, content
 	return err
 }
 
-// PresignedGetURL returns a time-limited download URL.
+// PresignedGetURL returns a time-limited download URL using the public endpoint.
 func (s *MinioStorage) PresignedGetURL(ctx context.Context, objectKey string, expiry time.Duration) (*url.URL, error) {
-	return s.client.PresignedGetObject(ctx, s.bucket, objectKey, expiry, nil)
+	u, err := s.client.PresignedGetObject(ctx, s.bucket, objectKey, expiry, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Rewrite internal Docker hostname to browser-accessible public endpoint.
+	if s.internalEndpoint != s.publicEndpoint {
+		raw := u.String()
+		raw = strings.ReplaceAll(raw, s.internalEndpoint, s.publicEndpoint)
+		if rewritten, err := url.Parse(raw); err == nil {
+			return rewritten, nil
+		}
+	}
+
+	return u, nil
 }
 
 // RemoveObject deletes an object from MinIO.
