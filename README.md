@@ -69,6 +69,9 @@ This starts: PostgreSQL, MinIO, MailHog, and the API service.
 | MinIO Console | http://localhost:9001 |
 | MailHog UI | http://localhost:8025 |
 
+Note: WebSocket endpoint is `ws://localhost:3000/ws`.
+
+
 ### 4. Run seed script
 
 ```bash
@@ -78,6 +81,8 @@ make seed
 ---
 
 ## API Reference
+
+For detailed request/response examples, error bodies, environment variables, and full endpoint docs, see [backend/GUIDE.md](./backend/GUIDE.md).
 
 ### Authentication
 
@@ -100,7 +105,10 @@ Response: `{ "token": "eyJ..." }`
 All file endpoints require `Authorization: Bearer <token>`.
 
 #### `POST /upload`
-Upload a PDF or image (JPEG/PNG/GIF/WebP). Max size controlled by `MAX_FILE_SIZE_MB`.
+Upload a PDF or image (JPEG/PNG/GIF/WebP).
+
+For accepted MIME types, request validation rules, and full error responses, see [backend/GUIDE.md](./backend/GUIDE.md#post-upload).
+
 
 ```bash
 curl -X POST http://localhost:3000/upload \
@@ -132,6 +140,9 @@ Get file status and metadata.
 
 #### `GET /files/:id/download`
 Returns a presigned MinIO URL valid for 60 minutes.
+
+For detailed examples and error responses, see [backend/GUIDE.md](./backend/GUIDE.md#get-files-id-download).
+
 
 #### `DELETE /files/:id`
 Deletes the file from MinIO and the database record.
@@ -219,6 +230,9 @@ Open http://localhost:5173 for the UI, http://localhost:3000 for the API directl
 ---
 
 ## Concurrency Patterns Demonstrated
+
+See [backend/GUIDE.md](./backend/GUIDE.md) for implementation-level details and endpoint behaviors.
+
 
 1. **Bounded worker pool**: 10 dispatcher goroutines + semaphore(10) limits concurrent I/O
 2. **Non-blocking enqueue**: `select { case ch <- job: default: return 503 }` — HTTP never blocks
