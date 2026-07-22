@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	"context"
+	"io"
 	"mime/multipart"
 	"time"
 
@@ -14,6 +15,7 @@ type FileService interface {
 	Create(ctx context.Context, userID uuid.UUID, header *multipart.FileHeader, tmpPath string) (*models.File, error)
 	List(ctx context.Context, userID uuid.UUID, page, limit int) ([]models.File, int64, error)
 	GetByID(ctx context.Context, userID, fileID uuid.UUID) (*models.File, error)
+	GetRawObject(ctx context.Context, userID, fileID uuid.UUID) (io.ReadCloser, string, error)
 	PresignedURL(ctx context.Context, userID, fileID uuid.UUID, expiry time.Duration) (string, error)
 	Delete(ctx context.Context, userID, fileID uuid.UUID) error
 	GetText(ctx context.Context, userID, fileID uuid.UUID) (string, error)

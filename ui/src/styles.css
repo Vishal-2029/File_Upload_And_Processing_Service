@@ -245,6 +245,83 @@ body {
   gap: 24px;
 }
 
+/* PDF overlay editor */
+.editor-body.pdf-scroll {
+  max-width: none;
+  align-items: center;
+  overflow: auto;
+  background: var(--gray-100, #f1f5f9);
+}
+
+.editor-zoom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .85rem;
+  color: var(--gray-600);
+}
+.editor-zoom button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+.editor-zoom button:hover { background: var(--gray-100); }
+.editor-zoom span { min-width: 42px; text-align: center; }
+
+.pdf-page {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0,0,0,.12);
+  border-radius: 2px;
+}
+.pdf-canvas {
+  display: block;
+  border-radius: 2px;
+  position: relative;
+  z-index: 0;
+}
+
+.pdf-textlayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* Each editable text run, positioned over its glyphs on the canvas. */
+.pdf-textrun {
+  position: absolute;
+  white-space: pre;
+  color: transparent;              /* canvas shows the real glyphs */
+  caret-color: #2563eb;
+  cursor: text;
+  outline: none;
+  border-radius: 2px;
+  transform-origin: 0 0;
+  padding: 0;
+}
+.pdf-textrun:hover {
+  background: rgba(37, 99, 235, .12);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, .35);
+}
+.pdf-textrun:focus {
+  color: #0f172a;                  /* reveal + cover original while editing */
+  background: #fff;
+  box-shadow: 0 0 0 2px #2563eb;
+  z-index: 2;
+}
+/* A run that has been changed: keep it opaque so it covers the original. */
+.pdf-textrun.changed {
+  color: #0f172a;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .3);
+}
+
 /* Page block */
 .page-block {
   background: #fff;

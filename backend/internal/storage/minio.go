@@ -88,6 +88,20 @@ func (s *MinioStorage) PresignedGetURL(ctx context.Context, objectKey string, ex
 	return u, nil
 }
 
+// GetObject returns a reader for an object's raw bytes. The caller must Close it.
+func (s *MinioStorage) GetObject(ctx context.Context, objectKey string) (io.ReadCloser, error) {
+	obj, err := s.client.GetObject(ctx, s.bucket, objectKey, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, err
+	}
+	// Force an early error (e.g. missing object) by stat-ing before returning.
+	if _, err := obj.Stat(); err != nil {
+		obj.Close()
+		return nil, err
+	}
+	return obj, nil
+}
+
 // RemoveObject deletes an object from MinIO.
 func (s *MinioStorage) RemoveObject(ctx context.Context, objectKey string) error {
 	return s.client.RemoveObject(ctx, s.bucket, objectKey, minio.RemoveObjectOptions{})

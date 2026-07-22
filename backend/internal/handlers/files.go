@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -21,6 +22,7 @@ func NewFileHandler(router fiber.Router, fileSvc svcinterfaces.FileService) {
 	router.Get("/files", h.List)
 	router.Get("/files/:id", h.Get)
 	router.Get("/files/:id/download", h.Download)
+	router.Get("/files/:id/raw", h.Raw)
 	router.Delete("/files/:id", h.Delete)
 	router.Get("/files/:id/text", h.GetText)
 	router.Put("/files/:id/text", h.UpdateText)
@@ -84,6 +86,28 @@ func (h *FileHandler) Download(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"url": presignedURL, "expires_in": "3600s"})
+}
+
+// Raw godoc
+// GET /files/:id/raw — streams the original PDF bytes same-origin (for the
+// browser-side overlay editor). Avoids CORS issues with presigned MinIO URLs.
+func (h *FileHandler) Raw(c *fiber.Ctx) error {
+	userID := mustParseUserID(c)
+
+	fileID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid file id"})
+	}
+
+	reader, name, err := h.fileSvc.GetRawObject(c.Context(), userID, fileID)
+	if err != nil {
+		return fileError(c, err)
+	}
+
+	c.Set("Content-Type", "application/pdf")
+	c.Set("Content-Disposition", fmt.Sprintf(`inline; filename=%q`, name))
+	c.Set("Cache-Control", "private, max-age=0, no-store")
+	return c.SendStream(reader)
 }
 
 // Delete godoc

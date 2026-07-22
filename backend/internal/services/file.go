@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -76,6 +77,23 @@ func (s *FileService) GetByID(ctx context.Context, userID, fileID uuid.UUID) (*m
 		return nil, ErrForbidden
 	}
 	return file, nil
+}
+
+// GetRawObject streams the original stored file bytes (used by the browser-side
+// PDF editor, which needs the untouched PDF same-origin to avoid CORS with MinIO).
+func (s *FileService) GetRawObject(ctx context.Context, userID, fileID uuid.UUID) (io.ReadCloser, string, error) {
+	file, err := s.GetByID(ctx, userID, fileID)
+	if err != nil {
+		return nil, "", err
+	}
+	if file.StoragePath == "" {
+		return nil, "", errors.New("file not yet processed")
+	}
+	reader, err := s.storage.GetObject(ctx, file.StoragePath)
+	if err != nil {
+		return nil, "", err
+	}
+	return reader, file.OriginalName, nil
 }
 
 func (s *FileService) PresignedURL(ctx context.Context, userID, fileID uuid.UUID, expiry time.Duration) (string, error) {
